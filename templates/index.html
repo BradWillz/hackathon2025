@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simple Chess</title>
+    <style>
+        table { border-collapse: collapse; }
+        td { width: 40px; height: 40px; text-align: center; font-size: 24px; }
+        .white { background: #eee; }
+        .black { background: #444; color: #fff; }
+        .drag-over { outline: 2px solid #f00; }
+    </style>
+</head>
+<body>
+    <h1>Simple Chess</h1>
+    <div id="board"></div>
+    <input type="text" id="move" placeholder="e2e4 or Nf3">
+    <button onclick="makeMove()">Move</button>
+    <div id="status"></div>
+    <script>
+        let fen = "{{ board }}";
+        let dragSource = null;
+        function renderBoard(fen) {
+            const pieces = {
+                'r':'&#9820;','n':'&#9822;','b':'&#9821;','q':'&#9819;','k':'&#9818;','p':'&#9823;',
+                'R':'&#9814;','N':'&#9816;','B':'&#9815;','Q':'&#9813;','K':'&#9812;','P':'&#9817;'
+            };
+            let rows = fen.split(' ')[0].split('/');
+            let html = '<table>';
+            for (let i = 0; i < 8; i++) {
+                html += '<tr>';
+                let col = 0;
+                for (let c of rows[i]) {
+                    if (!isNaN(c)) {
+                        for (let j = 0; j < parseInt(c); j++) {
+                            let color = (i + col) % 2 === 0 ? 'white' : 'black';
+                            html += `<td class="${color}" data-square="${String.fromCharCode(97+col)}${8-i}"></td>`;
+                            col++;
+                        }
+                    } else {
+                        let color = (i + col) % 2 === 0 ? 'white' : 'black';
+                        html += `<td class="${color}" draggable="true" data-square="${String.fromCharCode(97+col)}${8-i}">${pieces[c]}</td>`;
+                        col++;
+                    }
+                }
+                html += '</tr>';
+            }
+            html += '</table>';
+            document.getElementById('board').innerHTML = html;
+            addDragDropHandlers();
+        }
+        function addDragDropHandlers() {
+            document.querySelectorAll('#board td[draggable="true"]').forEach(td => {
+                td.addEventListener('dragstart', function(e) {
+                    dragSource = this.getAttribute('data-square');
+                });
+            });
+            document.querySelectorAll('#board td').forEach(td => {
+                td.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    this.classList.add('drag-over');
+                });
+                td.addEventListener('dragleave', function(e) {
+                    this.classList.remove('drag-over');
+                });
+                td.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    this.classList.remove('drag-over');
+                    let target = this.getAttribute('data-square');
+                    if (dragSource && target && dragSource !== target) {
+                        let move = dragSource + target;
+                        makeMove(move);
+                    }
+                    dragSource = null;
+                });
+            });
+        }
+        renderBoard(fen);
+        function makeMove(move) {
+            fetch('/move', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ move })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    fen = data.fen;
+                    renderBoard(fen);
+                    document.getElementById('status').innerText = '';
+                } else {
+                    document.getElementById('status').innerText = data.error;
+                }
+            });
+        }
+    </script>
+</body>
+</html>
